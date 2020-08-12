@@ -1,0 +1,11 @@
+raindrop
+
+# Vim files https://github.com/github/gitignore/blob/master/Global/Vim.gitignore
+# swap
+[._]*.s[a-w][a-z]
+[._]s[a-w][a-z]
+# session
+Session.vim
+
+# auto-generated tag files
+tags
