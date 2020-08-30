@@ -1,8 +1,13 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"log"
+	"net/http"
 	"os"
+	"os/user"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
@@ -25,6 +30,7 @@ func Execute() {
 // ~/.raindrop/config.yml
 type Config struct {
 	TestToken    string `yaml:"testToken"`
+	RefreshToken string `yaml:"refresh_token"`
 	ClientID     string `yaml:"clientID"`
 	ClientSecret string `yaml:"clientSecret"`
 }
@@ -37,7 +43,7 @@ func processError(err error) {
 func readFile(filename string) *os.File {
 	file, err := os.Open(filename)
 	if err != nil {
-		// TODO: Process error
+		processError(err)
 		var temp *os.File
 		return temp
 	}
@@ -48,8 +54,71 @@ func parseYaml(cfg *Config, file *os.File) bool {
 	decoder := yaml.NewDecoder(file)
 	err := decoder.Decode(cfg)
 	if err != nil {
-		// TODO: process error
+		processError(err)
 		return false
 	}
 	return true
+}
+
+func getYaml(filename string) Config {
+	var cfg Config
+	yamlFile := readFile(filename)
+	parsed := parseYaml(&cfg, yamlFile)
+	if !parsed {
+		log.Fatal("Failed to read file.")
+	}
+	return cfg
+}
+
+func pathToConfig() string {
+	user, err := user.Current()
+	if err != nil {
+		log.Fatal(err)
+	}
+	return user.HomeDir + "/.raindrop/config.yml"
+}
+
+// ACCESS METHODS
+func getAccessToken() string {
+	var cfg = getYaml(pathToConfig())
+	return cfg.TestToken
+}
+
+func getRefreshToken() string {
+	var cfg = getYaml(pathToConfig())
+	return cfg.RefreshToken
+}
+
+func getClientID() string {
+	var cfg = getYaml(pathToConfig())
+	return cfg.ClientID
+}
+
+func getClientSecret() string {
+	var cfg = getYaml(pathToConfig())
+	return cfg.ClientSecret
+}
+
+// GET METHODS
+func makeGetRequest(url string) io.ReadCloser {
+	client := &http.Client{}
+	req, _ := http.NewRequest("GET", url, nil)
+	token := getAccessToken()
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, _ := client.Do(req)
+	return res.Body
+}
+
+// POST METHODS
+func makePostRequest(url string, data *bytes.Buffer) int {
+	client := &http.Client{}
+	req, _ := http.NewRequest("POST", url, data)
+	token := getAccessToken()
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	response, err := client.Do(req)
+	if err != nil {
+		processError(err)
+	}
+	return response.StatusCode
 }
